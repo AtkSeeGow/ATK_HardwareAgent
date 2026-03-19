@@ -1,15 +1,15 @@
 ﻿namespace HardwareAgent.Domain.Options
 {
-    public class ChatOptions
+    public class LanguageModelServiceOptions
     {
         /// <summary>
         /// 
         /// </summary>
-        public string BaseUrl { get; set; }
+        public required string BaseUrl { get; set; }
 
         /// <summary>
         /// 
         /// </summary>
-        public string ApiKey { get; set; }
+        public required string ApiKey { get; set; }
     }
 }

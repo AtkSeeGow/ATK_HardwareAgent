@@ -10,9 +10,9 @@ namespace HardwareAgent.Web.Controllers
     [Route("Api/[controller]/[action]")]
     public class ChatController : ControllerBase
     {
-        private readonly ChatService _chatService;
+        private readonly LanguageModelService _chatService;
 
-        public ChatController(ChatService chatService)
+        public ChatController(LanguageModelService chatService)
         {
             _chatService = chatService;
         }

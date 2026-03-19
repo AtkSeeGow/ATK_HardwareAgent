@@ -1,34 +1,54 @@
 using HardwareAgent.Domain.Options;
 using HardwareAgent.Services;
+using Microsoft.Extensions.DependencyInjection;
+using System.Net.Http.Headers;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. ���U�պA (Options Pattern)
-var chatOptions = builder.Configuration.GetSection("ChatOptions");
-builder.Services.Configure<ChatOptions>(chatOptions);
+#region Options
 
-builder.Services.AddScoped<ChatService>();
+builder.Services.Configure<LanguageModelServiceOptions>(builder.Configuration.GetSection("LanguageModelServiceOptions"));
+builder.Services.Configure<DiscordServiceOptions>(builder.Configuration.GetSection("DiscordServiceOptions"));
 
-// 2. ���U Controllers
-builder.Services.AddControllers();
+var languageModelServiceOptions = builder.Configuration.GetSection("LanguageModelServiceOptions").Get<LanguageModelServiceOptions>()!;
 
-// 3. ���U Swagger �����A�� (�����b Build ���e�I)
-// �Y�ϥu�b�}�o���ҡu�ϥΡv�A�A�ȥ�����ĳ�������U�A�Ϊ̱N�P�_�޿�]�b builder ��
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+#endregion
+
+#region Service
+
+builder.Services.AddSingleton<DiscordService>();
+builder.Services.AddSingleton<OrchestratorService>();
+builder.Services.AddSingleton<LanguageModelService>();
+
+#endregion
+
+#region HostedService
+
+builder.Services.AddHostedService(sp => sp.GetRequiredService<DiscordService>());
+builder.Services.AddHostedService(sp => sp.GetRequiredService<OrchestratorService>());
+
+#endregion
+
+#region HttpClient
 
 builder.Services.AddHttpClient();
 builder.Services.AddHttpClient("AnythingLLM", options =>
 {
     options.Timeout = TimeSpan.FromMinutes(3);
+    options.BaseAddress = new Uri(languageModelServiceOptions.BaseUrl);
+    options.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", languageModelServiceOptions.ApiKey);
 });
+
+#endregion
+
+builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
-// 4. �]�w HTTP �ШD�޹D (Middleware)
 if (app.Environment.IsDevelopment())
 {
-    // �b�}�o���ұҥ� Swagger ����
     app.UseSwagger();
     app.UseSwaggerUI();
 }
