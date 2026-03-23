@@ -19,6 +19,7 @@ var languageModelServiceOptions = builder.Configuration.GetSection("LanguageMode
 builder.Services.AddSingleton<DiscordService>();
 builder.Services.AddSingleton<OrchestratorService>();
 builder.Services.AddSingleton<LanguageModelService>();
+builder.Services.AddSingleton<DeviceService>();
 
 #endregion
 
@@ -26,6 +27,7 @@ builder.Services.AddSingleton<LanguageModelService>();
 
 builder.Services.AddHostedService(sp => sp.GetRequiredService<DiscordService>());
 builder.Services.AddHostedService(sp => sp.GetRequiredService<OrchestratorService>());
+builder.Services.AddHostedService(sp => sp.GetRequiredService<DeviceService>());
 
 #endregion
 

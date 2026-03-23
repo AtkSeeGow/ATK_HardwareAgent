@@ -6,4 +6,8 @@
 
 #define HEARTBEAT_API "http://192.168.0.109:5149/Api/Device/Heartbeat"
 
+#define WEB_SOCKETS_SERVER_PORT 81
+
+
+
 #endif

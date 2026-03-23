@@ -1,37 +1,43 @@
 #include <M5Unified.h>
-#include <HTTPClient.h>
-#include "Config.h"
-#include "WifiManager.h"
+#include "time.h"
+#include "DisplayManager.h"
+#include "WebSocketsServerManager.h"
 
-WifiManager wifiManager;
-
-unsigned long lastPoll = 0;
-const int pollInterval = 3000;
+DisplayManager displayManager;
+WebSocketsServerManager webSocketsServerManager;
 
 void setup() {
+  Serial.begin(115200);
+
   auto cfg = M5.config();
   M5.begin(cfg);
 
-  Serial.begin(115200);
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+  }
 
-  M5.Display.setTextSize(3);
-  M5.Display.setRotation(3);
-  M5.Display.println("AI Hardware Agent");
+  configTime(8 * 3600, 0, "pool.ntp.org");
 
-  wifiManager.connect();
+  webSocketsServerManager.init();
+  displayManager.init();
 }
 
+String serialBuffer = "";
 void loop() {
-  if (millis() - lastPoll > pollInterval) {
-    lastPoll = millis();
+  webSocketsServerManager.loop();
+  displayManager.loop();
 
-    HTTPClient http;
-    http.begin(HEARTBEAT_API);
-    int httpCode = http.GET();
-    if (httpCode == 200) {
-      String payload = http.getString();
-      Serial.println(payload);
+  while (Serial.available()) {
+    char c = Serial.read();
+    if (c == '\n') {
+      serialBuffer.trim();
+      if (serialBuffer.length() > 0) {
+        webSocketsServerManager.handleSerialInput(serialBuffer);
+      }
+      serialBuffer = "";
+    } else {
+      serialBuffer += c;
     }
-
   }
 }
