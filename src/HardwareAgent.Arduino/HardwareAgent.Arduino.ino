@@ -1,9 +1,11 @@
 #include <M5Unified.h>
 #include "time.h"
 #include "DisplayManager.h"
+#include "DeviceController.h"
 #include "WebSocketsServerManager.h"
 
 DisplayManager displayManager;
+DeviceController deviceController;
 WebSocketsServerManager webSocketsServerManager;
 
 void setup() {
@@ -19,7 +21,8 @@ void setup() {
 
   configTime(8 * 3600, 0, "pool.ntp.org");
 
-  webSocketsServerManager.init();
+  deviceController.init();
+  webSocketsServerManager.init(&deviceController);
   displayManager.init();
 }
 
@@ -27,6 +30,7 @@ String serialBuffer = "";
 void loop() {
   webSocketsServerManager.loop();
   displayManager.loop();
+  deviceController.loop();
 
   while (Serial.available()) {
     char c = Serial.read();

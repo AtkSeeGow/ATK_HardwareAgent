@@ -11,8 +11,8 @@ namespace HardwareAgent.Services
         private readonly ILogger<DiscordService> logger;
         private readonly OrchestratorService orchestratorService;
 
-        private ClientWebSocket _client;
-        private readonly Uri _uri = new("ws://192.168.0.142:81");
+        private ClientWebSocket clientWebSocket;
+        private readonly Uri uri = new("ws://192.168.0.142:81");
 
         public event Action<StateMessage> OnStateChanged;
 
@@ -30,8 +30,8 @@ namespace HardwareAgent.Services
             {
                 try
                 {
-                    _client = new ClientWebSocket();
-                    await _client.ConnectAsync(_uri, stoppingToken);
+                    clientWebSocket = new ClientWebSocket();
+                    await clientWebSocket.ConnectAsync(uri, stoppingToken);
                     await ReceiveLoop(stoppingToken);
                 }
                 catch (Exception ex)
@@ -45,13 +45,13 @@ namespace HardwareAgent.Services
         {
             var buffer = new byte[1024];
 
-            while (_client.State == WebSocketState.Open && !token.IsCancellationRequested)
+            while (clientWebSocket.State == WebSocketState.Open && !token.IsCancellationRequested)
             {
-                var result = await _client.ReceiveAsync(new ArraySegment<byte>(buffer), token);
+                var result = await clientWebSocket.ReceiveAsync(new ArraySegment<byte>(buffer), token);
 
                 if (result.MessageType == WebSocketMessageType.Close)
                 {
-                    await _client.CloseAsync(WebSocketCloseStatus.NormalClosure, "", token);
+                    await clientWebSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "", token);
                     break;
                 }
 
@@ -75,7 +75,7 @@ namespace HardwareAgent.Services
 
         public async Task SetLedAsync(bool state)
         {
-            if (_client?.State != WebSocketState.Open)
+            if (clientWebSocket?.State != WebSocketState.Open)
             {
                 return;
             }
@@ -88,7 +88,7 @@ namespace HardwareAgent.Services
             var json = JsonSerializer.Serialize(cmd);
             var bytes = Encoding.UTF8.GetBytes(json);
 
-            await _client.SendAsync(bytes, WebSocketMessageType.Text, true, CancellationToken.None);
+            await clientWebSocket.SendAsync(bytes, WebSocketMessageType.Text, true, CancellationToken.None);
         }
     }
 

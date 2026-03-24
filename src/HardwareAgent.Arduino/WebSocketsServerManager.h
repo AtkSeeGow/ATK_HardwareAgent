@@ -3,11 +3,16 @@
 #include <ArduinoJson.h>
 #include <WebSocketsServer.h>
 #include "config.h"
+#include "DeviceController.h"
 
 class WebSocketsServerManager {
 public:
-  void init() {
+
+  DeviceController* deviceController = nullptr;
+
+  void init(DeviceController* dc) {
     instance = this;
+    deviceController = dc;
     webSocketsServer.begin();
     webSocketsServer.onEvent(eventWrapper);
   }
@@ -17,13 +22,8 @@ public:
   }
 
   void handleSerialInput(String inputValue) {
-    if (inputValue == "LED ON") {
-      broadcastInfo();
-    } else if (inputValue == "LED OFF") {
-      broadcastInfo();
-    } else {
-      broadcastSerialMessage(inputValue);
-    }
+    handleCommand(0, inputValue);
+    broadcastInfo();
   }
 
 private:
@@ -43,13 +43,19 @@ private:
   void event(uint8_t num, WStype_t type, uint8_t* payload, size_t length) {
     switch (type) {
       case WStype_CONNECTED:
-        Serial.printf("Client %u connected\n", num);
-        webSocketsServer.sendTXT(clientNum, getInfo());
-        break;
+        {
+          String json = getInfo();
+          Serial.printf("Client %u connected\n", num);
+          Serial.println(json);
+          webSocketsServer.sendTXT(num, json);
+          break;
+        }
 
       case WStype_DISCONNECTED:
-        Serial.printf("Client %u disconnected\n", num);
-        break;
+        {
+          Serial.printf("Client %u disconnected\n", num);
+          break;
+        }
 
       case WStype_TEXT:
         {
@@ -67,6 +73,7 @@ private:
     Serial.println("[WS SEND] " + json);
   }
 
+  // 指令解讀
   void handleCommand(uint8_t clientNum, String payload) {
     StaticJsonDocument<200> doc;
     DeserializationError error = deserializeJson(doc, payload);
@@ -76,32 +83,14 @@ private:
       return;
     }
 
-    String type = doc["type"];
-
-    if (type == "serial") {
-      String msg = doc["message"];
-      Serial.println("[WS RECV] " + msg);
-    }
+    deviceController->handleCommand(doc);
   }
 
-  void broadcastSerialMessage(String message) {
-    StaticJsonDocument<200> doc;
-    doc["type"] = "serial";
-    doc["message"] = message;
-
-    String json;
-    serializeJson(doc, json);
-
-    webSocketsServer.broadcastTXT(json);
-  }
-
+  // 取得裝置資訊
   String getInfo() {
     StaticJsonDocument<200> doc;
-    doc["type"] = "state";
-
-    // 準備擴充這一段，由各個控制物件取得對應資訊
-    // 於連線或有一方進行更改時，將資料打出去
-
+    doc["type"] = "info";
+    deviceController->getInfo(doc);
     String json;
     serializeJson(doc, json);
     return json;
