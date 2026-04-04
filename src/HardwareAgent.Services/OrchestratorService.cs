@@ -11,8 +11,7 @@ namespace HardwareAgent.Services
         private readonly IServiceProvider serviceProvider;
         private readonly ILogger<OrchestratorService> logger;
 
-        public readonly Channel<DiscordTask> DiscordTasks = Channel.CreateUnbounded<DiscordTask>();
-        public readonly Channel<DeviceTask> DeviceTasks = Channel.CreateUnbounded<DeviceTask>();
+        public readonly Channel<DataEnvelope> DataEnvelopeTasks = Channel.CreateUnbounded<DataEnvelope>();
 
         public OrchestratorService(
             IServiceProvider serviceProvider,
@@ -24,43 +23,43 @@ namespace HardwareAgent.Services
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            var discordTasksWorker = ProcessDiscordTasks(stoppingToken);
-            var deviceTasksWorker = ProcessDeviceTasks(stoppingToken);
-            await Task.WhenAll(discordTasksWorker, deviceTasksWorker);
+            var dataEnvelopeTasksWorker = processDataEnvelopeTasks(stoppingToken);
+            await Task.WhenAll(dataEnvelopeTasksWorker);
         }
 
-        private async Task ProcessDiscordTasks(CancellationToken stoppingToken)
+        private async Task processDataEnvelopeTasks(CancellationToken stoppingToken)
         {
-            await foreach (var discordTask in DiscordTasks.Reader.ReadAllAsync(stoppingToken))
+            await foreach (var dataEnvelopeTasks in DataEnvelopeTasks.Reader.ReadAllAsync(stoppingToken))
             {
                 try
                 {
                     using var scope = serviceProvider.CreateScope();
                     var languageModelService = scope.ServiceProvider.GetRequiredService<LanguageModelService>();
+                    var discordService = scope.ServiceProvider.GetRequiredService<DiscordService>();
 
-                    var xx = await languageModelService.AskAsync("atk_hardwareagent", discordTask.SocketMessage.Content);
+                    var destination = dataEnvelopeTasks.Destination;
+                    if (destination == EndpointType.LanguageModel)
+                    {
+                        var textResponse = dataEnvelopeTasks.Payload;
+                        //var textResponse = await languageModelService.AskAsync("atk_hardwareagent", dataEnvelopeTasks.Payload);
+                        await this.DataEnvelopeTasks.Writer.WriteAsync(new DataEnvelope()
+                        {
+                            Source = EndpointType.LanguageModel,
+                            Destination = EndpointType.Discord,
+                            ContentType = "text/plain",
+                            Payload = textResponse,
+                            Metadata = dataEnvelopeTasks.Metadata
+                        });
+                    }
+                    else if(destination == EndpointType.Discord)
+                    {
+                        var channelId = ulong.Parse(dataEnvelopeTasks.Metadata["ChannelId"].ToString());
+                        await discordService.SendMessageAsync(dataEnvelopeTasks.Payload, channelId);
+                    }
+                    else if (destination == EndpointType.Device)
+                    {
 
-                    // 分析結果，如果要丟裝置就不管了
-
-                    await discordTask.SocketMessage.Channel.SendMessageAsync(xx);
-                }
-                catch (Exception ex)
-                {
-                }
-            }
-        }
-
-        private async Task ProcessDeviceTasks(CancellationToken stoppingToken)
-        {
-            await foreach (var deviceMessage in DeviceTasks.Reader.ReadAllAsync(stoppingToken))
-            {
-                try
-                {
-                    using var scope = serviceProvider.CreateScope();
-                    var languageModelService = scope.ServiceProvider.GetRequiredService<LanguageModelService>();
-
-                    // 呼叫設備
-                    // ESP32 / PC / IoT
+                    }
                 }
                 catch (Exception ex)
                 {

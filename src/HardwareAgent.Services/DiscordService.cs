@@ -47,12 +47,31 @@ namespace HardwareAgent.Services
             return Task.CompletedTask;
         }
 
+        public async Task SendMessageAsync(string message, ulong channelId)
+        {
+            var channel = discordSocketClient.GetChannel(channelId) as IMessageChannel;
+            if (channel != null)
+                await channel.SendMessageAsync(message);
+        }
+
         private async Task MessageReceived(SocketMessage socketMessage)
         {
             if (socketMessage.Author.Id == discordSocketClient.CurrentUser.Id)
                 return;
 
-            await this.orchestratorService.DiscordTasks.Writer.WriteAsync(new DiscordTask() { SocketMessage = socketMessage });
+            await this.orchestratorService.DataEnvelopeTasks.Writer.WriteAsync(new DataEnvelope()
+            {
+                Source = EndpointType.Discord,
+                Destination = EndpointType.LanguageModel,
+                ContentType = "text/plain",
+                Payload = socketMessage.Content,
+                Metadata = new Dictionary<string, object>()
+                    {
+                        { "Author", socketMessage.Author.Username },
+                        { "ChannelId", socketMessage.Channel.Id },
+                        { "MessageId", socketMessage.Id }
+                    }
+            });
         }
     }
 }

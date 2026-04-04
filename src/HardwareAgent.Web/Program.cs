@@ -1,6 +1,5 @@
 using HardwareAgent.Domain.Options;
 using HardwareAgent.Services;
-using Microsoft.Extensions.DependencyInjection;
 using System.Net.Http.Headers;
 
 var builder = WebApplication.CreateBuilder(args);
