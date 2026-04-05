@@ -1,10 +1,10 @@
 ﻿namespace HardwareAgent.Domain.Options
 {
-    public class DiscordServiceOptions
+    public class DeviceOptions
     {
         /// <summary>
         /// 
         /// </summary>
-        public required string Token { get; set; }
+        public required string Uri { get; set; }
     }
 }

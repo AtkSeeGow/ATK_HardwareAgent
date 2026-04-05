@@ -6,10 +6,10 @@ var builder = WebApplication.CreateBuilder(args);
 
 #region Options
 
-builder.Services.Configure<LanguageModelServiceOptions>(builder.Configuration.GetSection("LanguageModelServiceOptions"));
-builder.Services.Configure<DiscordServiceOptions>(builder.Configuration.GetSection("DiscordServiceOptions"));
+builder.Services.Configure<LanguageModelOptions>(builder.Configuration.GetSection("LanguageModelOptions"));
+builder.Services.Configure<DiscordOptions>(builder.Configuration.GetSection("DiscordOptions"));
 
-var languageModelServiceOptions = builder.Configuration.GetSection("LanguageModelServiceOptions").Get<LanguageModelServiceOptions>()!;
+var languageModelOptions = builder.Configuration.GetSection("LanguageModelOptions").Get<LanguageModelOptions>()!;
 
 #endregion
 
@@ -36,8 +36,8 @@ builder.Services.AddHttpClient();
 builder.Services.AddHttpClient("AnythingLLM", options =>
 {
     options.Timeout = TimeSpan.FromMinutes(3);
-    options.BaseAddress = new Uri(languageModelServiceOptions.BaseUrl);
-    options.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", languageModelServiceOptions.ApiKey);
+    options.BaseAddress = new Uri(languageModelOptions.BaseUrl);
+    options.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", languageModelOptions.ApiKey);
 });
 
 #endregion

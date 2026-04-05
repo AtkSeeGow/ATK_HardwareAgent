@@ -11,17 +11,17 @@ namespace HardwareAgent.Services
     public class DiscordService : BackgroundService
     {
         private readonly ILogger<DiscordService> logger;
-        private readonly DiscordServiceOptions discordServiceOptions;
+        private readonly DiscordOptions discordOptions;
         private readonly DiscordSocketClient discordSocketClient;
         private readonly OrchestratorService orchestratorService;
 
         public DiscordService(
             ILogger<DiscordService> logger,
-            IOptions<DiscordServiceOptions> discordServiceOptions,
+            IOptions<DiscordOptions> discordOptions,
             OrchestratorService orchestratorService)
         {
             this.logger = logger;
-            this.discordServiceOptions = discordServiceOptions.Value;
+            this.discordOptions = discordOptions.Value;
             this.orchestratorService = orchestratorService;
 
             discordSocketClient = new DiscordSocketClient(new DiscordSocketConfig
@@ -35,7 +35,7 @@ namespace HardwareAgent.Services
             discordSocketClient.Log += Log;
             discordSocketClient.MessageReceived += MessageReceived;
 
-            await discordSocketClient.LoginAsync(TokenType.Bot, this.discordServiceOptions.Token);
+            await discordSocketClient.LoginAsync(TokenType.Bot, this.discordOptions.Token);
             await discordSocketClient.StartAsync();
 
             await Task.Delay(-1, stoppingToken);
@@ -59,7 +59,7 @@ namespace HardwareAgent.Services
             if (socketMessage.Author.Id == discordSocketClient.CurrentUser.Id)
                 return;
 
-            await this.orchestratorService.DataEnvelopeTasks.Writer.WriteAsync(new DataEnvelope()
+            await this.orchestratorService.DataEnvelopes.Writer.WriteAsync(new DataEnvelope()
             {
                 Source = EndpointType.Discord,
                 Destination = EndpointType.LanguageModel,

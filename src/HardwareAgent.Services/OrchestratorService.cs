@@ -2,6 +2,8 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using System.Text.Encodings.Web;
+using System.Text.Json;
 using System.Threading.Channels;
 
 namespace HardwareAgent.Services
@@ -10,8 +12,9 @@ namespace HardwareAgent.Services
     {
         private readonly IServiceProvider serviceProvider;
         private readonly ILogger<OrchestratorService> logger;
+        private readonly JsonSerializerOptions jsonSerializerOptions = new JsonSerializerOptions { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
 
-        public readonly Channel<DataEnvelope> DataEnvelopeTasks = Channel.CreateUnbounded<DataEnvelope>();
+        public readonly Channel<DataEnvelope> DataEnvelopes = Channel.CreateUnbounded<DataEnvelope>();
 
         public OrchestratorService(
             IServiceProvider serviceProvider,
@@ -23,42 +26,37 @@ namespace HardwareAgent.Services
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            var dataEnvelopeTasksWorker = processDataEnvelopeTasks(stoppingToken);
-            await Task.WhenAll(dataEnvelopeTasksWorker);
+            var dataEnvelopesWorker = ProcessDataEnvelopes(stoppingToken);
+            await Task.WhenAll(dataEnvelopesWorker);
         }
 
-        private async Task processDataEnvelopeTasks(CancellationToken stoppingToken)
+        private async Task ProcessDataEnvelopes(CancellationToken stoppingToken)
         {
-            await foreach (var dataEnvelopeTasks in DataEnvelopeTasks.Reader.ReadAllAsync(stoppingToken))
+            await foreach (var dataEnvelope in DataEnvelopes.Reader.ReadAllAsync(stoppingToken))
             {
                 try
                 {
                     using var scope = serviceProvider.CreateScope();
                     var languageModelService = scope.ServiceProvider.GetRequiredService<LanguageModelService>();
                     var discordService = scope.ServiceProvider.GetRequiredService<DiscordService>();
+                    var deviceService = scope.ServiceProvider.GetRequiredService<DeviceService>();
 
-                    var destination = dataEnvelopeTasks.Destination;
+                    var destination = dataEnvelope.Destination;
                     if (destination == EndpointType.LanguageModel)
                     {
-                        var textResponse = dataEnvelopeTasks.Payload;
-                        //var textResponse = await languageModelService.AskAsync("atk_hardwareagent", dataEnvelopeTasks.Payload);
-                        await this.DataEnvelopeTasks.Writer.WriteAsync(new DataEnvelope()
-                        {
-                            Source = EndpointType.LanguageModel,
-                            Destination = EndpointType.Discord,
-                            ContentType = "text/plain",
-                            Payload = textResponse,
-                            Metadata = dataEnvelopeTasks.Metadata
-                        });
+                        var textResponse = await languageModelService.AskAsync("atk_hardwareagent", JsonSerializer.Serialize(dataEnvelope, this.jsonSerializerOptions));
+                        var returnEnvelope = JsonSerializer.Deserialize<DataEnvelope>(textResponse, this.jsonSerializerOptions);
+                        if (returnEnvelope != null)
+                            await this.DataEnvelopes.Writer.WriteAsync(returnEnvelope);
                     }
                     else if(destination == EndpointType.Discord)
                     {
-                        var channelId = ulong.Parse(dataEnvelopeTasks.Metadata["ChannelId"].ToString());
-                        await discordService.SendMessageAsync(dataEnvelopeTasks.Payload, channelId);
+                        var channelId = ulong.Parse(dataEnvelope.Metadata["ChannelId"].ToString());
+                        await discordService.SendMessageAsync(dataEnvelope.Payload, channelId);
                     }
                     else if (destination == EndpointType.Device)
                     {
-
+                        await deviceService.Send(dataEnvelope);
                     }
                 }
                 catch (Exception ex)

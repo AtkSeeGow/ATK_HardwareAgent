@@ -1,6 +1,6 @@
 ﻿namespace HardwareAgent.Domain.Options
 {
-    public class LanguageModelServiceOptions
+    public class LanguageModelOptions
     {
         /// <summary>
         /// 

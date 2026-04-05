@@ -1,3 +1,5 @@
+using HardwareAgent.Domain;
+using HardwareAgent.Domain.Options;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System.Net.WebSockets;
@@ -8,20 +10,22 @@ namespace HardwareAgent.Services
 {
     public class DeviceService : BackgroundService
     {
-        private readonly ILogger<DiscordService> logger;
+        private readonly ILogger<DeviceService> logger;
+        private readonly DeviceOptions deviceOptions;
         private readonly OrchestratorService orchestratorService;
-
-        private ClientWebSocket clientWebSocket;
-        private readonly Uri uri = new("ws://192.168.0.142:81");
-
-        public event Action<StateMessage> OnStateChanged;
-
+        private readonly Uri deviceUri;
+        private readonly ClientWebSocket clientWebSocket;
+     
         public DeviceService(
-            ILogger<DiscordService> logger,
+            ILogger<DeviceService> logger,
+            DeviceOptions deviceOptions,
             OrchestratorService orchestratorService)
         {
             this.logger = logger;
+            this.deviceOptions = deviceOptions;
             this.orchestratorService = orchestratorService;
+            this.deviceUri = new(deviceOptions.Uri);
+
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -30,9 +34,9 @@ namespace HardwareAgent.Services
             {
                 try
                 {
-                    clientWebSocket = new ClientWebSocket();
-                    await clientWebSocket.ConnectAsync(uri, stoppingToken);
-                    await ReceiveLoop(stoppingToken);
+                    this.clientWebSocket = new ClientWebSocket();
+                    await this.clientWebSocket.ConnectAsync(uri, stoppingToken);
+                    await this.ReceiveLoop(stoppingToken);
                 }
                 catch (Exception ex)
                 {
@@ -45,66 +49,32 @@ namespace HardwareAgent.Services
         {
             var buffer = new byte[1024];
 
-            while (clientWebSocket.State == WebSocketState.Open && !token.IsCancellationRequested)
+            while (this.clientWebSocket.State == WebSocketState.Open && !token.IsCancellationRequested)
             {
-                var result = await clientWebSocket.ReceiveAsync(new ArraySegment<byte>(buffer), token);
-
-                if (result.MessageType == WebSocketMessageType.Close)
+                var webSocketReceiveResult = await clientWebSocket.ReceiveAsync(new ArraySegment<byte>(buffer), token);
+                if (webSocketReceiveResult.MessageType == WebSocketMessageType.Close)
                 {
                     await clientWebSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "", token);
                     break;
                 }
 
-                var json = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                HandleMessage(json);
+                var json = Encoding.UTF8.GetString(buffer, 0, webSocketReceiveResult.Count);
+                this.Handle(json);
             }
         }
 
-        private void HandleMessage(string json)
+        private void Handle(string json)
         {
-            using var doc = JsonDocument.Parse(json);
-
-            var type = doc.RootElement.GetProperty("type").GetString();
-
-            if (type == "state")
-            {
-                var state = JsonSerializer.Deserialize<StateMessage>(json);
-                OnStateChanged?.Invoke(state);
-            }
+            var dataEnvelope = JsonSerializer.Deserialize<DataEnvelope>(json);
+            if (dataEnvelope != null)
+                this.orchestratorService.DataEnvelopes.Writer.WriteAsync(dataEnvelope);
         }
 
-        public async Task SetLedAsync(bool state)
+        public async Task Send(DataEnvelope dataEnvelope)
         {
-            if (clientWebSocket?.State != WebSocketState.Open)
-            {
-                return;
-            }
-
-            var cmd = new SetLedCommand
-            {
-                Value = state
-            };
-
-            var json = JsonSerializer.Serialize(cmd);
+            var json = JsonSerializer.Serialize(dataEnvelope);
             var bytes = Encoding.UTF8.GetBytes(json);
-
             await clientWebSocket.SendAsync(bytes, WebSocketMessageType.Text, true, CancellationToken.None);
-        }
-    }
-
-    public class StateMessage
-    {
-        public bool Led { get; set; }
-    }
-
-    public class SetLedCommand
-    {
-        public string Type { get; set; }
-        public bool Value { get; set; }
-
-        public SetLedCommand()
-        {
-            Type = "set_led";
         }
     }
 }
