@@ -3,7 +3,7 @@
     /// <summary>
     /// 資料封包
     /// </summary>
-    public class DataEnvelope
+    public class DataEnvelope<T>
     {
         /// <summary>
         /// 來源資料類型
@@ -18,7 +18,7 @@
         /// <summary>
         /// 業務資料
         /// </summary>
-        public string Payload { get; set; } = string.Empty;
+        public T Payload { get; set; }
 
         /// <summary>
         /// 資料類型

@@ -8,6 +8,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.Configure<LanguageModelOptions>(builder.Configuration.GetSection("LanguageModelOptions"));
 builder.Services.Configure<DiscordOptions>(builder.Configuration.GetSection("DiscordOptions"));
+builder.Services.Configure<DeviceOptions>(builder.Configuration.GetSection("DeviceOptions"));
 
 var languageModelOptions = builder.Configuration.GetSection("LanguageModelOptions").Get<LanguageModelOptions>()!;
 

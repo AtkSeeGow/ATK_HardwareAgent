@@ -59,7 +59,7 @@ namespace HardwareAgent.Services
             if (socketMessage.Author.Id == discordSocketClient.CurrentUser.Id)
                 return;
 
-            await this.orchestratorService.DataEnvelopes.Writer.WriteAsync(new DataEnvelope()
+            await this.orchestratorService.DataEnvelopes.Writer.WriteAsync(new DataEnvelope<object>()
             {
                 Source = EndpointType.Discord,
                 Destination = EndpointType.LanguageModel,

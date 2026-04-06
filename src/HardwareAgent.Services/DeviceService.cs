@@ -2,6 +2,7 @@ using HardwareAgent.Domain;
 using HardwareAgent.Domain.Options;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
@@ -13,19 +14,19 @@ namespace HardwareAgent.Services
         private readonly ILogger<DeviceService> logger;
         private readonly DeviceOptions deviceOptions;
         private readonly OrchestratorService orchestratorService;
-        private readonly Uri deviceUri;
-        private readonly ClientWebSocket clientWebSocket;
+        private readonly Uri uri;
+
+        private ClientWebSocket clientWebSocket;
      
         public DeviceService(
             ILogger<DeviceService> logger,
-            DeviceOptions deviceOptions,
+            IOptions<DeviceOptions> deviceOptions,
             OrchestratorService orchestratorService)
         {
             this.logger = logger;
-            this.deviceOptions = deviceOptions;
+            this.deviceOptions = deviceOptions.Value;
             this.orchestratorService = orchestratorService;
-            this.deviceUri = new(deviceOptions.Uri);
-
+            this.uri = new(this.deviceOptions.Uri);
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -59,20 +60,20 @@ namespace HardwareAgent.Services
                 }
 
                 var json = Encoding.UTF8.GetString(buffer, 0, webSocketReceiveResult.Count);
-                this.Handle(json);
+                this.MessageReceived(json);
             }
         }
 
-        private void Handle(string json)
+        private void MessageReceived(string json)
         {
-            var dataEnvelope = JsonSerializer.Deserialize<DataEnvelope>(json);
+            var dataEnvelope = JsonSerializer.Deserialize<DataEnvelope<object>>(json, JsonHelper.DefaultOptions);
             if (dataEnvelope != null)
                 this.orchestratorService.DataEnvelopes.Writer.WriteAsync(dataEnvelope);
         }
 
-        public async Task Send(DataEnvelope dataEnvelope)
+        public async Task SendMessageAsync(DataEnvelope<object> dataEnvelope)
         {
-            var json = JsonSerializer.Serialize(dataEnvelope);
+            var json = JsonSerializer.Serialize(dataEnvelope, JsonHelper.DefaultOptions);
             var bytes = Encoding.UTF8.GetBytes(json);
             await clientWebSocket.SendAsync(bytes, WebSocketMessageType.Text, true, CancellationToken.None);
         }

@@ -12,9 +12,8 @@ namespace HardwareAgent.Services
     {
         private readonly IServiceProvider serviceProvider;
         private readonly ILogger<OrchestratorService> logger;
-        private readonly JsonSerializerOptions jsonSerializerOptions = new JsonSerializerOptions { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
-
-        public readonly Channel<DataEnvelope> DataEnvelopes = Channel.CreateUnbounded<DataEnvelope>();
+     
+        public readonly Channel<DataEnvelope<object>> DataEnvelopes = Channel.CreateUnbounded<DataEnvelope<object>>();
 
         public OrchestratorService(
             IServiceProvider serviceProvider,
@@ -44,19 +43,19 @@ namespace HardwareAgent.Services
                     var destination = dataEnvelope.Destination;
                     if (destination == EndpointType.LanguageModel)
                     {
-                        var textResponse = await languageModelService.AskAsync("atk_hardwareagent", JsonSerializer.Serialize(dataEnvelope, this.jsonSerializerOptions));
-                        var returnEnvelope = JsonSerializer.Deserialize<DataEnvelope>(textResponse, this.jsonSerializerOptions);
+                        var textResponse = await languageModelService.AskAsync("hardwareagent", JsonSerializer.Serialize(dataEnvelope, JsonHelper.DefaultOptions));
+                        var returnEnvelope = JsonSerializer.Deserialize<DataEnvelope<object>>(textResponse, JsonHelper.DefaultOptions);
                         if (returnEnvelope != null)
                             await this.DataEnvelopes.Writer.WriteAsync(returnEnvelope);
                     }
                     else if(destination == EndpointType.Discord)
                     {
                         var channelId = ulong.Parse(dataEnvelope.Metadata["ChannelId"].ToString());
-                        await discordService.SendMessageAsync(dataEnvelope.Payload, channelId);
+                        await discordService.SendMessageAsync(dataEnvelope.Payload.ToString(), channelId);
                     }
                     else if (destination == EndpointType.Device)
                     {
-                        await deviceService.Send(dataEnvelope);
+                        await deviceService.SendMessageAsync(dataEnvelope);
                     }
                 }
                 catch (Exception ex)

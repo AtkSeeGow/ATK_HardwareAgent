@@ -22,7 +22,7 @@ public:
   }
 
   void handleSerialInput(String inputValue) {
-    handleCommand(0, inputValue);
+    handleDataEnvelope(0, inputValue);
     broadcastInfo();
   }
 
@@ -45,23 +45,27 @@ private:
       case WStype_CONNECTED:
         {
           String json = getInfo();
-          Serial.printf("Client %u connected\n", num);
-          Serial.println(json);
+
+          log_d("Client %u connected", num);
+          log_d("%s", json.c_str());
+
           webSocketsServer.sendTXT(num, json);
           break;
         }
 
       case WStype_DISCONNECTED:
         {
-          Serial.printf("Client %u disconnected\n", num);
+          log_d("Client %u disconnected", num);
           break;
         }
 
       case WStype_TEXT:
         {
           String msg = String((char*)payload);
-          Serial.println("[WS RECV RAW] " + msg);
-          handleCommand(num, msg);
+
+          // 要思考這邊如何將原始資料中重要的部分進行保存，讓後續能正確回應
+          handleDataEnvelope(num, msg);
+
           break;
         }
     }
@@ -69,21 +73,41 @@ private:
 
   void broadcastInfo() {
     String json = getInfo();
+    log_d("%s", json.c_str());
     webSocketsServer.broadcastTXT(json);
-    Serial.println("[WS SEND] " + json);
   }
 
   // 指令解讀
-  void handleCommand(uint8_t clientNum, String payload) {
-    StaticJsonDocument<200> doc;
-    DeserializationError error = deserializeJson(doc, payload);
+  void handleDataEnvelope(uint8_t clientNum, String payload) {
+    log_d("%s", payload.c_str());
+
+    StaticJsonDocument<512> jsonDocument;
+    DeserializationError error = deserializeJson(jsonDocument, payload);
 
     if (error) {
-      Serial.println("JSON parse failed");
+      log_d("deserializeJson() failed: %s", error.c_str());
       return;
     }
 
-    deviceController->handleCommand(doc);
+    deviceController->handleCommand(jsonDocument);
+
+    StaticJsonDocument<128> newPayload;
+    newPayload["status"] = "success";
+
+    String newPayloadStr;
+    serializeJson(newPayload, newPayloadStr);
+
+    jsonDocument["payload"] = newPayloadStr;
+
+    jsonDocument["source"] = 1;
+    jsonDocument["destination"] = 3;
+
+    String output;
+    serializeJson(jsonDocument, output);
+
+    log_d("%s", output.c_str());
+
+    webSocketsServer.sendTXT(clientNum, output);
   }
 
   // 取得裝置資訊
